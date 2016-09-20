@@ -29,10 +29,12 @@ extern "C" {
 }
 
 #include "clipper.hpp"
+#include "visilibity.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 namespace cl = ClipperLib;
+namespace vl = VisiLibity;
 
 void print_exception(const std::exception& e, int level = 0) {
     std::cerr << std::string(level, ' ') << "error: " << e.what() << '\n';
@@ -96,13 +98,8 @@ std::vector<point_2> tool(double r, unsigned segments = 64) {
 }
 
 
-
-class agent {
-private:
+struct path_scaling {
     const double scale = 1e12;
-    cl::Path tool_p;
-    cl::Paths geometry;
-    point_2 current;
 
     cl::IntPoint scale_point(const point_2& p) const {
         return cl::IntPoint(p.x * scale, p.y * scale);
@@ -114,7 +111,7 @@ private:
             scaled.push_back(scale_point(p));
         return scaled;
     }
-    cl::Paths scale_paths(const std::vector<std::vector<point_2>>& paths) {
+    cl::Paths scale_paths(const std::vector<std::vector<point_2>>& paths) const {
         cl::Paths scaled;
         scaled.reserve(paths.size());
         for (auto& path : paths)
@@ -122,17 +119,6 @@ private:
         return scaled;
     }
 
-    void clear_path(const cl::IntPoint& p0, const cl::IntPoint& p1) {
-        cl::Paths toolpath;
-        MinkowskiSum(tool_p, {p0, p1}, toolpath, false);
-
-        cl::Clipper clipper;
-        clipper.AddPaths(geometry, cl::ptSubject, true);
-        clipper.AddPaths(toolpath, cl::ptClip, true);
-
-        geometry.clear();
-        clipper.Execute(cl::ctDifference, geometry);
-    }
     void output_path(const cl::Paths& paths) {
         auto unscale = [&](const cl::IntPoint& p) -> point_2 {
             return {static_cast<double>(p.X) / scale, static_cast<double>(p.Y) / scale};
@@ -147,6 +133,36 @@ private:
             std::cout << "L " << r6(first.x) << " " << r6(first.y) << " ";
         }
     }
+};
+
+vl::Polygon to_polygon(const std::vector<point_2>& points) {
+    std::vector<vl::Point> polygon;
+    polygon.reserve(points.size());
+    for (auto& p : points)
+        polygon.emplace_back(p.x, p.y);
+    return { polygon };
+}
+vl::Environment to_environment() {
+    return {};
+}
+
+class agent : private path_scaling {
+private:
+    cl::Path tool_p;
+    cl::Paths geometry;
+    point_2 current;
+
+    void cut_path(const cl::IntPoint& p0, const cl::IntPoint& p1) {
+        cl::Paths toolpath;
+        MinkowskiSum(tool_p, {p0, p1}, toolpath, false);
+
+        cl::Clipper clipper;
+        clipper.AddPaths(geometry, cl::ptSubject, true);
+        clipper.AddPaths(toolpath, cl::ptClip, true);
+
+        geometry.clear();
+        clipper.Execute(cl::ctDifference, geometry);
+    }
 public:
     agent (double tool_diameter, const std::vector<std::vector<point_2>>& geometry)
      : geometry(scale_paths(geometry)) {
@@ -154,8 +170,8 @@ public:
     }
     point_2 step() {
         point_2 next;
-        next = point_2{10, 10};
-        clear_path(scale_point(current), scale_point(next));
+        next = point_2{25, 25};
+        cut_path(scale_point(current), scale_point(next));
         output_path(geometry);
         return next;
     }
@@ -192,6 +208,14 @@ int main(int argc, char* argv[]) {
         /* agent must output path (list of points)
          * agent calculates next action, move to point!
          * how does agent decide how to move (i.e. which parameters are to be optimised?)
+         * */
+
+        /* Part input as .off model, stock as .off model
+         * stock - model == material to remove
+         *
+         * Make cuboid, height as depth of cut, width and depth greater than part dimensions
+         * take intersection of 3d model using cork library, project as 2d plane
+         * 2d plane slices represent material to remove per slice.
          * */
 
         // TODO

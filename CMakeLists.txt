@@ -11,6 +11,8 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -std=c++11")
 ADD_LIBRARY(polyclipping STATIC clipper.cpp)
 SET_TARGET_PROPERTIES(polyclipping PROPERTIES VERSION 19.0.0 SOVERSION 19)
 
+ADD_LIBRARY(visilibity STATIC visilibity.cpp)
+
 INCLUDE_DIRECTORIES(
     ${LUA_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
@@ -21,4 +23,5 @@ TARGET_LINK_LIBRARIES(agentcam
     ${LUA_LIBRARIES}
     ${Boost_LIBRARIES}
     polyclipping
+    visilibity
 )
