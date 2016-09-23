@@ -22,3 +22,9 @@ TARGET_LINK_LIBRARIES(agentcam
     ${Boost_LIBRARIES}
     polyclipping
 )
+
+ADD_EXECUTABLE(staticcam staticcam.cpp)
+TARGET_LINK_LIBRARIES(staticcam 
+    ${Boost_LIBRARIES}
+    polyclipping
+)
